@@ -1,0 +1,691 @@
+PRD: Creative DNA
+1. Product Overview
+1.1 Nama Produk
+Creative DNA
+1.2 Deskripsi Singkat
+Creative DNA adalah aplikasi web untuk mencatat, mengelola, dan melacak perkembangan creative iklan dari satu produk ke produk lainnya.
+Aplikasi ini dibuat untuk advertiser, media buyer, dan creative strategist yang melakukan creative testing di Meta Ads. Creative DNA membantu user melihat creative mana yang menang, creative mana yang menjadi sumber horizontal scaling, dan bagaimana hubungan antar creative terbentuk dari satu test batch ke test batch berikutnya.
+Creative DNA bukan hanya tempat menyimpan gambar dan copy iklan. Creative DNA adalah sistem tracking creative lineage yang menyimpan “DNA” dari setiap creative:
+	•	Angle
+	•	Hook
+	•	Primary text
+	•	Headline
+	•	CTA
+	•	Prompt gambar
+	•	Prompt video
+	•	Visual notes
+	•	Asset gambar/video
+	•	Metrics
+	•	Winner decision
+	•	Parent creative
+	•	Child creative
+1.3 Platform Direction
+Creative DNA akan dibangun sebagai aplikasi web berbasis:
+	•	Next.js
+	•	Firebase Authentication
+	•	Cloud Firestore
+	•	Cloud Storage for Firebase
+	•	Firebase Hosting atau Firebase App Hosting
+	•	React Flow / xyflow untuk canvas lineage
+Firebase Studio dapat digunakan sebagai alat prototyping awal jika workspace masih tersedia. Namun, fondasi production tetap menggunakan Firebase services dan source code yang bisa dipindahkan ke repo mandiri.
+1.4 Problem Statement
+Advertiser sering membuat banyak creative untuk satu produk. Dalam satu test campaign, user bisa menguji 2 sampai 12 creative. Setelah 3 sampai 5 hari, user menandai creative tertentu sebagai winner.
+Masalah muncul ketika winner tersebut dipakai untuk horizontal scaling. Hook, primary text, prompt gambar, angle, visual style, dan alasan kenapa creative itu menang sering tercecer di banyak tempat:
+	•	Google Sheets
+	•	Folder asset
+	•	Chat
+	•	Notion
+	•	Meta Ads Manager
+	•	Memory pribadi
+Akibatnya:
+	•	Sulit melakukan tracing dari creative winning ke creative turunan.
+	•	Sulit tahu angle mana yang benar-benar diterima market.
+	•	Sulit tahu apakah creative menang karena hook, visual, prompt, format, atau kombinasi semuanya.
+	•	Sulit membuat creative baru yang tetap mempertahankan DNA winner sebelumnya.
+	•	Scaling creative jadi tidak sistematis.
+	•	Setelah beberapa ronde testing, user kehilangan peta hubungan antar creative.
+1.5 Product Vision
+Menjadi pusat kendali creative testing dan horizontal scaling yang membantu advertiser membaca silsilah performa dari setiap creative.
+Creative DNA membantu user menjawab:
+	•	Creative mana yang menang?
+	•	Creative itu berasal dari creative mana?
+	•	Hook apa yang dipertahankan?
+	•	Visual apa yang diubah?
+	•	Prompt gambar mana yang melahirkan winner?
+	•	Angle mana yang paling sering diterima market?
+	•	Garis keturunan creative mana yang paling profitable?
+1.6 Target User
+Primary User
+Solo advertiser, digital marketer, founder, atau performance marketer yang menjalankan Meta Ads untuk produk sendiri.
+Karakteristik:
+	•	Rutin membuat banyak creative iklan.
+	•	Melakukan testing manual 2 sampai 12 creative per batch.
+	•	Melakukan horizontal scaling dari creative winning.
+	•	Belum membutuhkan integrasi Meta API di tahap MVP.
+	•	Membutuhkan sistem pencatatan creative yang rapi.
+Secondary User
+Media buyer, creative strategist, dan small agency.
+Karakteristik:
+	•	Mengelola beberapa produk atau brand.
+	•	Membutuhkan riwayat creative untuk analisis internal.
+	•	Ingin melihat angle dan hook yang terbukti diterima market.
+	•	Membutuhkan canvas visual agar alur creative mudah dibaca.
+1.7 Core Use Case
+User membuat produk baru, lalu membuat Test Campaign 1. Di dalam campaign tersebut, user menginput 2 sampai 12 creative yang akan dites di Meta Ads.
+Setelah 3 sampai 5 hari, user kembali ke aplikasi, input metrics secara manual, lalu menandai Creative 4 sebagai winner.
+User kemudian membuat Test Campaign 2 dari Creative 4. Di Test Campaign 2, user menginput creative baru yang merupakan turunan dari Creative 4.
+Setelah testing berikutnya, user menandai Creative 2 dari Test Campaign 2 sebagai winner.
+Di halaman canvas, user bisa melihat garis lineage:
+Creative 4 dari Test Campaign 1 → Creative 2 dari Test Campaign 2 → Creative winner berikutnya.
+1.8 Product Goals
+	•	Memudahkan user mencatat semua creative berdasarkan produk.
+	•	Memudahkan user menandai creative winning.
+	•	Memudahkan user membuat batch scaling dari creative winner.
+	•	Memudahkan user melihat alur creative secara visual.
+	•	Memudahkan user membaca angle, hook, prompt, dan visual yang diterima market.
+	•	Mengurangi kehilangan konteks saat horizontal scaling.
+	•	Membuat workflow creative testing lebih sistematis.
+1.9 Business Goals
+	•	Membuat aplikasi internal untuk workflow Meta Ads.
+	•	Membuka peluang menjadi SaaS sederhana untuk advertiser dan media buyer.
+	•	Membangun database creative intelligence.
+	•	Mempersiapkan fondasi untuk AI creative generation dan Meta API integration di masa depan.
+1.10 Non-Goals untuk MVP
+Fitur berikut tidak masuk MVP:
+	•	AI generate creative otomatis.
+	•	Integrasi langsung dengan Meta Ads API.
+	•	Auto-sync metrics dari Meta.
+	•	AI scoring creative.
+	•	Creative fatigue prediction.
+	•	Multi-user approval workflow.
+	•	Billing SaaS.
+	•	Public creative marketplace.
+	•	Advanced attribution.
+	•	A/B significance calculator.
+Fokus MVP adalah pencatatan, tracing, lineage, dan visualisasi creative.
+
+2. Key Concepts
+2.1 Product
+Product adalah produk atau offer yang sedang diiklankan.
+Contoh:
+	•	The Queen’s Touch
+	•	The Royal Service
+	•	BicaraManjaa
+	•	Household OS
+Setiap product memiliki test batch, creative, winner, asset, metrics, dan canvas lineage sendiri.
+2.2 Test Batch
+Test Batch adalah satu ronde pengujian creative.
+Contoh:
+	•	Test Campaign 1
+	•	Test Campaign 2
+	•	Scale Batch 1
+	•	Hook Test Batch
+	•	Visual Test Batch
+Satu test batch biasanya berisi 2 sampai 12 creative.
+2.3 Creative
+Creative adalah satu unit iklan.
+Creative terdiri dari:
+	•	Copy
+	•	Hook
+	•	Angle
+	•	Prompt
+	•	Visual asset
+	•	Format
+	•	Metrics
+	•	Status
+	•	Notes
+Creative bisa berupa:
+	•	Image
+	•	Video
+	•	Carousel
+2.4 Creative DNA
+Creative DNA adalah data inti dari sebuah creative.
+Isi Creative DNA:
+	•	Angle
+	•	Hook
+	•	Primary text
+	•	Headline
+	•	Description
+	•	CTA
+	•	Image prompt
+	•	Video prompt
+	•	Visual notes
+	•	Format
+	•	Aspect ratio
+	•	Placement
+	•	Asset
+	•	Metrics
+	•	Winner reason
+	•	Mutation type
+2.5 Winner
+Winner adalah creative yang ditandai user sebagai creative terbaik atau paling layak dipakai untuk scaling.
+Winner bisa dipilih berdasarkan:
+	•	CPA terbaik
+	•	Purchase terbanyak
+	•	ROAS terbaik
+	•	CTR tinggi
+	•	CPC rendah
+	•	Visual paling relatable
+	•	Hook paling kuat
+	•	Manual judgment
+2.6 Source Creative
+Source Creative adalah creative winner yang menjadi sumber batch baru.
+Contoh:
+Creative 4 dari Test Campaign 1 menjadi source untuk Test Campaign 2.
+2.7 Child Creative
+Child Creative adalah creative baru yang dibuat dari source creative.
+Contoh:
+Creative 2 dari Test Campaign 2 adalah child dari Creative 4 di Test Campaign 1.
+2.8 Lineage
+Lineage adalah hubungan silsilah antar creative.
+Contoh:
+Creative 4 → Creative 2 → Creative 7
+Lineage membantu user melihat cabang creative yang terus menghasilkan winner.
+2.9 Mutation
+Mutation adalah perubahan yang dilakukan dari parent creative ke child creative.
+Contoh mutation:
+	•	Same hook, new visual.
+	•	Same visual, new hook.
+	•	Same angle, new prompt.
+	•	Same copy, new format.
+	•	Same prompt, different model.
+	•	Same headline, new primary text.
+
+3. User Journey
+3.1 First-Time User Journey
+	•	User register atau login.
+	•	User masuk ke dashboard.
+	•	User klik “Create Product”.
+	•	User mengisi nama produk.
+	•	User masuk ke Product Workspace.
+	•	User klik “Create Test Batch”.
+	•	User menginput nama batch, objective, dan tanggal mulai.
+	•	User menambahkan 2 sampai 12 creative.
+	•	User upload asset gambar/video.
+	•	User menyimpan batch.
+	•	User menjalankan iklan di Meta secara manual.
+	•	Setelah 3 sampai 5 hari, user kembali ke aplikasi.
+	•	User input metrics manual.
+	•	User menandai creative winner.
+	•	User membuat scale batch dari winner.
+	•	User melihat garis lineage di canvas.
+3.2 Returning User Journey
+	•	User login.
+	•	User melihat daftar produk.
+	•	User memilih produk.
+	•	User membuka Lineage Canvas.
+	•	User melihat creative winner terakhir.
+	•	User klik winner.
+	•	User membaca DNA creative.
+	•	User membuat batch baru dari winner.
+	•	User input creative turunan.
+	•	User menjalankan testing lagi.
+
+4. Main Features
+4.1 Authentication
+User dapat register, login, logout, dan mengakses data miliknya sendiri.
+MVP Auth Method
+	•	Email/password
+Later
+	•	Google login
+Acceptance Criteria
+	•	User bisa membuat akun.
+	•	User bisa login.
+	•	User bisa logout.
+	•	User tidak bisa melihat data user lain.
+	•	Session user tetap aktif selama token valid.
+4.2 Product Management
+User dapat membuat, membaca, mengedit, mengarsipkan, dan menghapus product.
+Fields
+	•	Product name
+	•	Description
+	•	Niche
+	•	Status
+	•	Notes
+Acceptance Criteria
+	•	User bisa membuat product baru.
+	•	User bisa melihat daftar product miliknya.
+	•	User bisa masuk ke detail product.
+	•	User bisa mengedit product.
+	•	User bisa archive product.
+	•	User bisa delete product dengan confirmation.
+	•	Product menjadi parent untuk batch, creative, asset, edge, dan metrics.
+4.3 Test Batch Management
+User dapat membuat ronde testing creative untuk satu product.
+Fields
+	•	Batch name
+	•	Batch number
+	•	Objective
+	•	Status
+	•	Source creative
+	•	Start date
+	•	End date
+	•	Notes
+Batch Status
+	•	Draft
+	•	Testing
+	•	Completed
+	•	Archived
+Acceptance Criteria
+	•	User bisa membuat batch manual.
+	•	User bisa membuat batch dari creative winner.
+	•	Batch baru dari winner otomatis menyimpan sourceCreativeId.
+	•	User bisa melihat daftar batch per product.
+	•	User bisa mengubah status batch.
+	•	User bisa menambahkan creative ke batch.
+4.4 Creative Input
+User dapat menambahkan creative ke dalam batch.
+Fields
+	•	Creative number
+	•	Creative name
+	•	Angle
+	•	Hook
+	•	Primary text
+	•	Headline
+	•	Description
+	•	CTA
+	•	Image prompt
+	•	Video prompt
+	•	Visual notes
+	•	Format
+	•	Aspect ratio
+	•	Placement
+	•	Asset
+	•	Notes
+Acceptance Criteria
+	•	User bisa input creative satu per satu.
+	•	User bisa input minimal 1 creative di draft.
+	•	Sistem memberi rekomendasi 2 sampai 12 creative untuk testing.
+	•	User bisa menyimpan draft creative.
+	•	User bisa upload gambar/video.
+	•	User bisa edit creative.
+	•	User bisa delete creative.
+	•	User bisa duplicate creative.
+4.5 Asset Upload
+User dapat upload gambar atau video untuk setiap creative.
+File Type
+Image:
+	•	JPG
+	•	JPEG
+	•	PNG
+	•	WEBP
+Video:
+	•	MP4
+	•	MOV
+	•	WEBM
+Acceptance Criteria
+	•	User bisa upload asset ke Cloud Storage.
+	•	Metadata asset tersimpan di Firestore.
+	•	User bisa melihat preview asset.
+	•	User bisa mengganti asset.
+	•	User bisa delete asset.
+	•	File hanya bisa diakses oleh owner.
+4.6 Creative DNA Detail
+User dapat membuka detail creative dan membaca seluruh DNA-nya.
+Detail yang ditampilkan
+	•	Thumbnail asset
+	•	Product name
+	•	Batch name
+	•	Creative number
+	•	Status
+	•	Parent creative
+	•	Child creative
+	•	Angle
+	•	Hook
+	•	Primary text
+	•	Headline
+	•	Description
+	•	CTA
+	•	Prompt gambar/video
+	•	Metrics
+	•	Winner reason
+	•	Notes
+Acceptance Criteria
+	•	Klik creative card membuka detail panel.
+	•	Detail panel menampilkan semua data creative.
+	•	Jika creative punya parent, user bisa klik parent.
+	•	Jika creative punya child, user bisa melihat daftar child.
+	•	User bisa copy hook, primary text, dan prompt.
+4.7 Mark as Winner
+User dapat menandai creative sebagai winner.
+Fields saat Mark Winner
+	•	Winner reason
+	•	Winning signal
+	•	Notes
+Winning Signal Options
+	•	CPA terbaik
+	•	Purchase terbanyak
+	•	CTR tinggi
+	•	CPC rendah
+	•	ROAS bagus
+	•	Visual paling relatable
+	•	Hook paling kuat
+	•	Manual decision
+Acceptance Criteria
+	•	User bisa menandai creative sebagai winner.
+	•	Creative winner mendapat badge.
+	•	Winner status tersimpan.
+	•	Tanggal winner tersimpan.
+	•	User bisa menghapus status winner jika salah.
+	•	Satu batch boleh punya lebih dari satu winner.
+4.8 Create Scale Batch from Winner
+User dapat membuat batch baru dari creative winner.
+Flow
+	•	User membuka creative winner.
+	•	User klik “Create Scale Batch”.
+	•	Sistem membuka form batch baru.
+	•	Sistem mengisi sourceCreativeId dari winner.
+	•	User mengisi nama batch dan objective.
+	•	User membuat creative turunan.
+	•	Setiap creative turunan otomatis punya parentCreativeId.
+	•	Sistem membuat edge dari parent ke child.
+Acceptance Criteria
+	•	Hanya creative winner yang bisa menjadi source scale batch.
+	•	Batch baru menyimpan sourceCreativeId.
+	•	Creative baru di batch tersebut menyimpan parentCreativeId.
+	•	Edge otomatis dibuat dari parent ke child.
+	•	Canvas langsung memperlihatkan hubungan parent-child.
+4.9 Manual Metrics Input
+User dapat menginput performa creative secara manual.
+Metrics
+	•	Spend
+	•	Impressions
+	•	Reach
+	•	Clicks
+	•	CTR
+	•	CPC
+	•	CPM
+	•	Purchases
+	•	Leads
+	•	Revenue
+	•	CPA
+	•	ROAS
+Acceptance Criteria
+	•	User bisa input metrics per creative.
+	•	User bisa update metrics setelah campaign berjalan.
+	•	Sistem bisa menghitung CPA jika spend dan purchase tersedia.
+	•	Sistem bisa menghitung ROAS jika spend dan revenue tersedia.
+	•	Metrics tampil di creative card dan detail panel.
+4.10 Lineage Canvas
+User dapat melihat hubungan antar creative dalam bentuk flow-chart canvas.
+Canvas Elements
+	•	Creative node
+	•	Batch lane
+	•	Edge parent-child
+	•	Winner badge
+	•	Status badge
+	•	Thumbnail creative
+	•	Edge label
+Canvas Interaction
+	•	Pan
+	•	Zoom
+	•	Fit view
+	•	Click node
+	•	Open detail panel
+	•	Filter winner only
+	•	Filter by batch
+	•	Filter by angle
+	•	Filter by format
+Acceptance Criteria
+	•	Canvas menampilkan creative dari product terpilih.
+	•	Creative dikelompokkan berdasarkan batch.
+	•	Winner terlihat jelas.
+	•	Edge menghubungkan parent creative ke child creative.
+	•	Klik node membuka detail creative.
+	•	Canvas tetap terbaca walau ada banyak creative.
+	•	User bisa reset view.
+4.11 Winner Library
+Winner Library adalah daftar semua creative yang pernah ditandai sebagai winner untuk satu product.
+Acceptance Criteria
+	•	User bisa melihat semua winner.
+	•	User bisa filter berdasarkan angle.
+	•	User bisa filter berdasarkan batch.
+	•	User bisa sort by CPA, ROAS, purchase, tanggal.
+	•	User bisa langsung create scale batch dari winner.
+4.12 Search and Filter
+User dapat mencari creative berdasarkan keyword dan filter.
+Filter
+	•	Product
+	•	Batch
+	•	Status
+	•	Winner only
+	•	Angle
+	•	Format
+	•	Aspect ratio
+	•	Placement
+	•	Date range
+Acceptance Criteria
+	•	Search dapat menemukan hook, headline, angle, prompt, dan notes.
+	•	Filter dapat dikombinasikan.
+	•	Hasil search tampil dalam grid dan canvas.
+4.13 Export CSV
+User dapat export data creative ke CSV.
+Export Data
+	•	Product
+	•	Batch
+	•	Creative number
+	•	Angle
+	•	Hook
+	•	Primary text
+	•	Headline
+	•	Prompt
+	•	Status
+	•	Parent creative
+	•	Metrics
+	•	Notes
+Acceptance Criteria
+	•	User bisa export per product.
+	•	User bisa export per batch.
+	•	User bisa export winner only.
+	•	CSV dapat dibuka di spreadsheet.
+
+5. Page Structure
+5.1 Dashboard
+Tujuan:
+Memberi overview cepat semua produk dan aktivitas creative.
+Content:
+	•	Total products
+	•	Total creatives
+	•	Total winners
+	•	Recent winners
+	•	Recent products
+	•	CTA create product
+5.2 Products Page
+Content:
+	•	Product list
+	•	Product card
+	•	Search product
+	•	Create product button
+Product card menampilkan:
+	•	Product name
+	•	Total batch
+	•	Total creative
+	•	Total winner
+	•	Last updated
+5.3 Product Workspace
+Tabs:
+	•	Overview
+	•	Batches
+	•	Canvas
+	•	Winners
+	•	Settings
+5.4 Batch Detail Page
+Content:
+	•	Batch info
+	•	Objective
+	•	Status
+	•	Source creative
+	•	Creative grid
+	•	Add creative button
+	•	Mark completed button
+5.5 Creative Detail Drawer
+Content:
+	•	Asset preview
+	•	Creative DNA
+	•	Metrics
+	•	Winner decision
+	•	Parent creative
+	•	Child creative
+	•	Action buttons
+Action buttons:
+	•	Edit
+	•	Duplicate
+	•	Mark as Winner
+	•	Create Scale Batch
+	•	Archive
+	•	Delete
+5.6 Lineage Canvas Page
+Content:
+	•	Canvas
+	•	Filter bar
+	•	Mini map
+	•	Zoom controls
+	•	Detail inspector
+	•	Legend
+Legend:
+	•	Green badge: Winner
+	•	Gray badge: Testing
+	•	Red badge: Loser
+	•	Gold badge: Best lineage
+	•	Solid line: Scaled from
+	•	Dashed line: Related variation
+
+6. UX Requirements
+6.1 Design Direction
+Creative DNA harus terasa seperti creative command center.
+Karakter UI:
+	•	Clean
+	•	Fast
+	•	Visual
+	•	Tactical
+	•	Tidak terlalu enterprise
+	•	Tidak terlalu spreadsheet
+	•	Fokus ke creative card dan canvas
+6.2 Suggested Visual Style
+	•	Background: dark slate atau soft neutral.
+	•	Card: clean white atau dark card.
+	•	Accent: electric blue, purple, atau gold.
+	•	Winner badge: green atau gold.
+	•	Failed branch: muted red.
+	•	Canvas edge: subtle.
+	•	Typography: modern sans-serif.
+6.3 Empty State
+Dashboard kosong:
+“Belum ada produk. Mulai dari satu produk dulu, lalu biarkan creative-nya punya silsilah.”
+Canvas kosong:
+“Belum ada lineage. Tandai creative sebagai winner, lalu buat scale batch dari creative tersebut.”
+Winner kosong:
+“Belum ada winner. Setelah campaign berjalan 3 sampai 5 hari, tandai creative yang layak jadi sumber scaling.”
+6.4 Error State
+	•	Upload gagal.
+	•	Data gagal disimpan.
+	•	Creative tidak ditemukan.
+	•	User tidak punya akses.
+	•	File terlalu besar.
+	•	Format file tidak didukung.
+6.5 Confirmation Modal
+Dibutuhkan untuk:
+	•	Delete product
+	•	Delete batch
+	•	Delete creative
+	•	Remove winner status
+	•	Archive product
+	•	Create scale batch
+
+7. Success Metrics
+7.1 Product Usage Metrics
+	•	Number of products created.
+	•	Number of batches created.
+	•	Number of creatives added.
+	•	Number of winners marked.
+	•	Number of scale batches created.
+	•	Number of canvas views opened.
+	•	Number of CSV exports.
+7.2 Outcome Metrics
+	•	User dapat menemukan source creative winning dalam waktu kurang dari 30 detik.
+	•	User dapat membuat scale batch dari winner dalam kurang dari 2 menit.
+	•	User dapat melihat lineage creative minimal 3 ronde testing.
+	•	User tidak perlu lagi mencari hook atau prompt winning di tempat terpisah.
+7.3 Activation Metric
+User dianggap activated jika:
+	•	Membuat 1 product.
+	•	Membuat 1 batch.
+	•	Menambahkan minimal 2 creative.
+	•	Menandai minimal 1 winner.
+7.4 Retention Signal
+User kembali untuk:
+	•	Update metrics.
+	•	Mark winner.
+	•	Create scale batch.
+	•	View canvas lineage.
+
+8. MVP Acceptance Criteria
+MVP dianggap selesai jika:
+	•	User bisa login.
+	•	User bisa membuat product.
+	•	User bisa membuat test batch.
+	•	User bisa input creative manual.
+	•	User bisa upload asset.
+	•	User bisa menandai creative sebagai winner.
+	•	User bisa membuat scale batch dari winner.
+	•	Sistem menyimpan parentCreativeId.
+	•	Sistem membuat edge lineage.
+	•	Canvas menampilkan creative dan garis hubungan.
+	•	User bisa melihat detail creative.
+	•	User bisa input metrics manual.
+	•	User bisa export CSV.
+	•	User hanya bisa mengakses data miliknya sendiri.
+
+9. Roadmap
+Phase 1: MVP Foundation
+	•	Auth
+	•	Product CRUD
+	•	Batch CRUD
+	•	Creative CRUD
+	•	Asset upload
+	•	Manual metrics
+	•	Mark winner
+Phase 2: Lineage Core
+	•	Create scale batch from winner
+	•	Parent-child creative relation
+	•	Edge data
+	•	Canvas lineage
+	•	Detail inspector
+	•	Filter winner only
+Phase 3: Creative Intelligence Basic
+	•	Winner library
+	•	Angle summary
+	•	Hook summary
+	•	Prompt summary
+	•	Best lineage
+	•	Parent vs child compare
+Phase 4: Workflow Improvement
+	•	Bulk creative input
+	•	Bulk upload asset
+	•	Duplicate batch
+	•	Duplicate creative
+	•	Mutation tag
+	•	CSV export
+Phase 5: Automation
+	•	Meta API integration
+	•	Auto metrics sync
+	•	AI-assisted insight
+	•	AI creative generation
+	•	Creative fatigue detection
+
+10. Platform Risk
+Firebase Studio dapat digunakan untuk prototyping, tapi tidak boleh menjadi satu-satunya tempat source code disimpan.
+Mitigation:
+	•	Simpan project di GitHub.
+	•	Gunakan Firebase services sebagai backend utama.
+	•	Pastikan app bisa dijalankan secara lokal.
+	•	Pastikan deployment bisa dilakukan dari repo.
+	•	Hindari lock-in ke fitur eksperimental Firebase Studio.
+	•	Siapkan migrasi ke Google AI Studio, Google Antigravity, atau local development jika diperlukan.
+
+11. Product Principle
+Creative DNA harus membantu user menjaga tiga hal:
+	•	Apa yang dites.
+	•	Apa yang menang.
+	•	Dari mana winner berikutnya berasal.
+Jika sebuah fitur tidak membantu salah satu dari tiga hal ini, fitur tersebut tidak masuk MVP.

@@ -1,0 +1,820 @@
+TRD: Creative DNA
+1. Technical Overview
+1.1 Nama Aplikasi
+Creative DNA
+1.2 Updated Tech Stack
+Frontend:
+	•	Next.js
+	•	React
+	•	TypeScript
+	•	Tailwind CSS
+	•	React Flow / xyflow
+	•	Zod
+	•	React Hook Form
+Firebase Services:
+	•	Firebase Authentication
+	•	Cloud Firestore
+	•	Cloud Storage for Firebase
+	•	Firebase Security Rules
+	•	Firebase Hosting atau Firebase App Hosting
+	•	Cloud Functions for Firebase, optional
+	•	Firebase Emulator Suite, optional untuk local testing
+Development Environment:
+	•	Firebase Studio untuk prototyping jika workspace tersedia
+	•	GitHub sebagai source of truth
+	•	Local development sebagai fallback wajib
+1.3 Technical Objective
+Membangun aplikasi web yang memungkinkan user:
+	•	Mengelola product.
+	•	Mengelola test batch.
+	•	Mengelola creative.
+	•	Upload gambar/video.
+	•	Menandai winner.
+	•	Membuat scale batch dari winner.
+	•	Melihat lineage creative dalam canvas.
+	•	Menginput metrics manual.
+	•	Export data.
+1.4 Architecture Style
+Architecture yang direkomendasikan:
+	•	Next.js app sebagai frontend dan app layer.
+	•	Firebase Authentication untuk auth.
+	•	Cloud Firestore sebagai primary database.
+	•	Cloud Storage sebagai tempat file creative.
+	•	Firestore Security Rules untuk data ownership.
+	•	Storage Security Rules untuk file ownership dan validasi file.
+	•	React Flow untuk lineage canvas.
+	•	Explicit reference ID untuk relasi utama.
+	•	Dedicated edges collection untuk graph relation.
+
+2. High-Level Architecture
+User Browser   |   | Next.js App   |   |-- App Router   |-- React Components   |-- Server Actions / Route Handlers optional   |-- Firebase Client SDK   |-- Firebase Admin SDK optional   | Firebase   |   |-- Authentication   |-- Cloud Firestore   |-- Cloud Storage   |-- Security Rules   |-- Hosting / App Hosting   |-- Cloud Functions optional
+2.1 Client Responsibilities
+Client bertanggung jawab untuk:
+	•	Render UI.
+	•	Form input.
+	•	Canvas interaction.
+	•	File upload UI.
+	•	Filter dan search interaction.
+	•	Calling Firebase client SDK.
+	•	Showing realtime data jika diperlukan.
+	•	Managing local UI state.
+2.2 Server Responsibilities
+Server layer optional untuk MVP.
+Server layer berguna untuk:
+	•	Export CSV.
+	•	Validasi workflow sensitif.
+	•	Generate signed export.
+	•	Aggregation dashboard.
+	•	Future Meta API integration.
+	•	Future AI generation.
+Untuk MVP, banyak operasi bisa langsung memakai Firebase Client SDK dengan Security Rules yang ketat.
+2.3 Firebase Responsibilities
+Firebase bertanggung jawab untuk:
+	•	Authentication.
+	•	Firestore document storage.
+	•	Storage file upload.
+	•	Security rules.
+	•	Hosting.
+	•	Optional functions.
+	•	Optional emulator.
+
+3. Routing Structure
+3.1 Route Map
+/   redirect to /dashboard if authenticated   redirect to /login if unauthenticated  /login /register  /dashboard  /products /products/new /products/[productId] /products/[productId]/overview /products/[productId]/batches /products/[productId]/batches/new /products/[productId]/batches/[batchId] /products/[productId]/canvas /products/[productId]/winners /products/[productId]/settings  /products/[productId]/creatives/[creativeId]
+3.2 Route Descriptions
+/dashboard
+Overview semua product dan recent activity.
+/products
+List product user.
+/products/[productId]
+Product workspace shell.
+/products/[productId]/batches
+List semua test batch dalam product.
+/products/[productId]/batches/[batchId]
+Detail batch dan creative grid.
+/products/[productId]/canvas
+Lineage canvas menggunakan React Flow.
+/products/[productId]/winners
+Winner library.
+/products/[productId]/creatives/[creativeId]
+Creative detail full page. Bisa juga dibuka sebagai drawer di halaman lain.
+
+4. Firebase Project Setup
+4.1 Firebase Services
+Enable services:
+	•	Firebase Authentication
+	•	Cloud Firestore
+	•	Cloud Storage
+	•	Firebase Hosting atau App Hosting
+Optional later:
+	•	Cloud Functions
+	•	Google Analytics
+	•	Crashlytics, jika app mobile nanti
+	•	Remote Config, jika butuh feature flag
+4.2 Authentication
+MVP provider:
+	•	Email/password
+Later provider:
+	•	Google
+4.3 Firestore Mode
+Gunakan Cloud Firestore native mode.
+4.4 Storage Buckets
+Recommended logical path:
+users/{userId}/products/{productId}/creatives/{creativeId}/assets/{fileName} users/{userId}/products/{productId}/exports/{fileName}
+
+5. Firestore Data Model
+Ada dua opsi data model:
+	•	Top-level collections.
+	•	Nested subcollections.
+Untuk MVP, rekomendasi: top-level collections dengan explicit userId, productId, batchId, creativeId.
+Alasannya:
+	•	Query lebih fleksibel.
+	•	Canvas lineage lebih mudah.
+	•	Export lebih gampang.
+	•	Security Rules tetap bisa dibuat ketat.
+	•	Cocok untuk future analytics.
+Collections:
+users products testBatches creatives creativeAssets creativeEdges creativeMetrics activityLogs
+
+5.1 Collection: users
+Path:
+users/{userId}
+type UserProfile = {   uid: string   email: string   displayName?: string   photoURL?: string   createdAt: Timestamp   updatedAt: Timestamp }
+Indexes:
+	•	uid
+	•	email
+Rules:
+	•	User hanya bisa read/update document miliknya sendiri.
+
+5.2 Collection: products
+Path:
+products/{productId}
+type Product = {   id: string   userId: string    name: string   description?: string   niche?: string   status: "active" | "archived"   notes?: string    totalBatches?: number   totalCreatives?: number   totalWinners?: number    createdAt: Timestamp   updatedAt: Timestamp }
+Required fields:
+userId name status createdAt updatedAt
+Indexes:
+	•	userId
+	•	status
+	•	createdAt
+	•	updatedAt
+Suggested queries:
+products where userId == currentUser.uid orderBy updatedAt desc products where userId == currentUser.uid and status == active
+
+5.3 Collection: testBatches
+Path:
+testBatches/{batchId}
+type TestBatch = {   id: string   userId: string   productId: string    name: string   batchNumber: number   objective?: string    sourceCreativeId?: string   sourceBatchId?: string    status: "draft" | "testing" | "completed" | "archived"    startedAt?: Timestamp   endedAt?: Timestamp   notes?: string    createdAt: Timestamp   updatedAt: Timestamp }
+Required fields:
+userId productId name batchNumber status createdAt updatedAt
+Indexes:
+	•	userId
+	•	productId
+	•	productId + batchNumber
+	•	productId + status
+	•	sourceCreativeId
+	•	createdAt
+Business rules:
+	•	batchNumber auto increment per product.
+	•	sourceCreativeId optional.
+	•	Jika batch dibuat dari winner, sourceCreativeId wajib ada.
+	•	Satu product bisa punya banyak batch.
+
+5.4 Collection: creatives
+Path:
+creatives/{creativeId}
+type Creative = {   id: string   userId: string   productId: string   batchId: string    creativeNumber: number   name?: string    parentCreativeId?: string   sourceWinnerId?: string    angle?: string   hook: string   primaryText?: string   headline?: string   description?: string   cta?: string    imagePrompt?: string   videoPrompt?: string   visualNotes?: string    format: "image" | "video" | "carousel"   aspectRatio?: "9:16" | "4:5" | "1:1" | "16:9" | "other"   placements?: string[]    status: "draft" | "testing" | "winner" | "loser" | "scaled" | "archived"    isWinner: boolean   winnerMarkedAt?: Timestamp   winnerReason?: string   winningSignal?: string    dnaSnapshot?: CreativeDNASnapshot    metaCampaignName?: string   metaAdsetName?: string   metaAdName?: string   metaAdId?: string    notes?: string    createdAt: Timestamp   updatedAt: Timestamp }
+type CreativeDNASnapshot = {   sourceCreativeId: string   sourceBatchId: string   sourceProductId: string    angle?: string   hook: string   primaryText?: string   headline?: string   description?: string   cta?: string    imagePrompt?: string   videoPrompt?: string   visualNotes?: string    format?: string   aspectRatio?: string   placements?: string[]    capturedAt: Timestamp }
+Required fields:
+userId productId batchId creativeNumber hook format status isWinner createdAt updatedAt
+Indexes:
+	•	userId
+	•	productId
+	•	batchId
+	•	parentCreativeId
+	•	sourceWinnerId
+	•	isWinner
+	•	status
+	•	productId + isWinner
+	•	productId + status
+	•	productId + batchId
+	•	productId + createdAt
+Business rules:
+	•	creativeNumber auto increment per batch.
+	•	parentCreativeId optional.
+	•	parentCreativeId wajib ada jika creative dibuat dalam scale batch.
+	•	isWinner true jika status winner.
+	•	Winner boleh lebih dari satu dalam satu batch.
+	•	dnaSnapshot menyimpan DNA source ketika child dibuat.
+
+5.5 Collection: creativeAssets
+Path:
+creativeAssets/{assetId}
+type CreativeAsset = {   id: string   userId: string   productId: string   batchId: string   creativeId: string    storagePath: string   downloadURL?: string    fileType: "image" | "video"   mimeType?: string   originalFileName?: string    thumbnailStoragePath?: string   width?: number   height?: number   duration?: number   sizeBytes?: number    sortOrder: number    createdAt: Timestamp }
+Required fields:
+userId productId batchId creativeId storagePath fileType sortOrder createdAt
+Indexes:
+	•	userId
+	•	productId
+	•	batchId
+	•	creativeId
+	•	fileType
+	•	createdAt
+Business rules:
+	•	Satu creative bisa punya lebih dari satu asset.
+	•	MVP boleh batasi 1 asset utama per creative.
+	•	Video thumbnail bisa manual dulu.
+	•	downloadURL optional. Untuk private asset, lebih aman generate URL saat dibutuhkan atau pakai Storage SDK.
+
+5.6 Collection: creativeEdges
+Path:
+creativeEdges/{edgeId}
+type CreativeEdge = {   id: string   userId: string   productId: string    fromCreativeId: string   toCreativeId: string    fromBatchId?: string   toBatchId?: string    relationType:     | "scaled_from"     | "same_hook"     | "same_visual_prompt"     | "same_angle"     | "copy_test"     | "visual_mutation"     | "text_mutation"     | "format_mutation"     | "manual_relation"    label?: string   notes?: string    createdAt: Timestamp }
+Required fields:
+userId productId fromCreativeId toCreativeId relationType createdAt
+Indexes:
+	•	userId
+	•	productId
+	•	fromCreativeId
+	•	toCreativeId
+	•	relationType
+	•	productId + relationType
+	•	createdAt
+Business rules:
+	•	Edge dibuat otomatis ketika child creative dibuat dari parent.
+	•	Edge dapat diedit label-nya.
+	•	Edge dapat dibuat manual jika user ingin menghubungkan creative lama.
+
+5.7 Collection: creativeMetrics
+Path:
+creativeMetrics/{metricId}
+type CreativeMetric = {   id: string   userId: string   productId: string   batchId: string   creativeId: string    spend?: number   impressions?: number   reach?: number   clicks?: number   ctr?: number   cpc?: number   cpm?: number    purchases?: number   leads?: number   revenue?: number   cpa?: number   roas?: number    reportingDate?: Timestamp   notes?: string    createdAt: Timestamp   updatedAt: Timestamp }
+Required fields:
+userId productId batchId creativeId createdAt updatedAt
+Indexes:
+	•	userId
+	•	productId
+	•	batchId
+	•	creativeId
+	•	reportingDate
+	•	productId + creativeId
+	•	createdAt
+Business rules:
+	•	MVP bisa pakai satu latest metrics row per creative.
+	•	Later bisa support daily metrics.
+	•	CPA dihitung dari spend / purchases.
+	•	ROAS dihitung dari revenue / spend.
+
+5.8 Collection: activityLogs
+Path:
+activityLogs/{activityId}
+type ActivityLog = {   id: string   userId: string   productId?: string   batchId?: string   creativeId?: string    action:     | "product_created"     | "batch_created"     | "creative_created"     | "creative_updated"     | "creative_marked_winner"     | "scale_batch_created"     | "creative_deleted"     | "metrics_updated"     | "asset_uploaded"    message: string   metadata?: Record<string, unknown>    createdAt: Timestamp }
+Indexes:
+	•	userId
+	•	productId
+	•	batchId
+	•	creativeId
+	•	action
+	•	createdAt
+
+6. Security Rules
+6.1 Firestore Rule Principle
+Semua document wajib punya userId.
+User hanya boleh read/write document yang userId-nya sama dengan request.auth.uid.
+6.2 Firestore Rules Draft
+rules_version = '2';  service cloud.firestore {   match /databases/{database}/documents {     function isSignedIn() {       return request.auth != null;     }      function isOwner() {       return isSignedIn() && resource.data.userId == request.auth.uid;     }      function isCreatingOwnDoc() {       return isSignedIn() && request.resource.data.userId == request.auth.uid;     }      match /users/{userId} {       allow read, update, delete: if isSignedIn() && request.auth.uid == userId;       allow create: if isSignedIn() && request.auth.uid == userId;     }      match /products/{productId} {       allow read, update, delete: if isOwner();       allow create: if isCreatingOwnDoc();     }      match /testBatches/{batchId} {       allow read, update, delete: if isOwner();       allow create: if isCreatingOwnDoc();     }      match /creatives/{creativeId} {       allow read, update, delete: if isOwner();       allow create: if isCreatingOwnDoc();     }      match /creativeAssets/{assetId} {       allow read, update, delete: if isOwner();       allow create: if isCreatingOwnDoc();     }      match /creativeEdges/{edgeId} {       allow read, update, delete: if isOwner();       allow create: if isCreatingOwnDoc();     }      match /creativeMetrics/{metricId} {       allow read, update, delete: if isOwner();       allow create: if isCreatingOwnDoc();     }      match /activityLogs/{activityId} {       allow read: if isOwner();       allow create: if isCreatingOwnDoc();       allow update, delete: if false;     }   } }
+6.3 Storage Rules Draft
+Recommended storage path:
+users/{userId}/products/{productId}/creatives/{creativeId}/assets/{fileName}
+Draft rules:
+rules_version = '2';  service firebase.storage {   match /b/{bucket}/o {     function isSignedIn() {       return request.auth != null;     }      function isOwner(userId) {       return isSignedIn() && request.auth.uid == userId;     }      function isAllowedImage() {       return request.resource.contentType.matches('image/.*')         && request.resource.size < 10 * 1024 * 1024;     }      function isAllowedVideo() {       return request.resource.contentType.matches('video/.*')         && request.resource.size < 100 * 1024 * 1024;     }      match /users/{userId}/products/{productId}/creatives/{creativeId}/assets/{fileName} {       allow read: if isOwner(userId);       allow write: if isOwner(userId) && (isAllowedImage() || isAllowedVideo());       allow delete: if isOwner(userId);     }      match /users/{userId}/products/{productId}/exports/{fileName} {       allow read, write, delete: if isOwner(userId);     }   } }
+
+7. Core Workflows
+7.1 Create Product
+Input:
+type CreateProductInput = {   name: string   description?: string   niche?: string }
+Process:
+	•	Validate user session.
+	•	Validate input.
+	•	Create product document.
+	•	Set userId from auth user.
+	•	Set status active.
+	•	Set timestamps.
+	•	Create activity log.
+Output:
+Product
+
+7.2 Create Test Batch
+Input:
+type CreateBatchInput = {   productId: string   name: string   objective?: string   sourceCreativeId?: string   startedAt?: Date }
+Process:
+	•	Validate user owns product.
+	•	Query latest batch for product.
+	•	Set batchNumber = latest + 1.
+	•	If sourceCreativeId exists, validate creative is winner.
+	•	Create batch.
+	•	Create activity log.
+Output:
+TestBatch
+
+7.3 Add Creative to Batch
+Input:
+type CreateCreativeInput = {   productId: string   batchId: string   parentCreativeId?: string    hook: string   primaryText?: string   headline?: string   angle?: string   imagePrompt?: string   videoPrompt?: string   format: "image" | "video" | "carousel" }
+Process:
+	•	Validate user owns product and batch.
+	•	Generate creativeNumber.
+	•	If parentCreativeId exists, fetch parent creative.
+	•	Create dnaSnapshot from parent creative.
+	•	Create creative document.
+	•	If parentCreativeId exists, create creative edge.
+	•	Create activity log.
+Output:
+Creative
+
+7.4 Upload Asset
+Input:
+type UploadCreativeAssetInput = {   productId: string   batchId: string   creativeId: string   file: File }
+Process:
+	•	Validate user session.
+	•	Validate file type.
+	•	Validate file size.
+	•	Generate storage path.
+	•	Upload file to Cloud Storage.
+	•	Create creativeAssets document in Firestore.
+	•	Create activity log.
+Storage path:
+users/{userId}/products/{productId}/creatives/{creativeId}/assets/{timestamp}-{fileName}
+Output:
+CreativeAsset
+
+7.5 Mark Creative as Winner
+Input:
+type MarkWinnerInput = {   creativeId: string   winnerReason?: string   winningSignal?: string }
+Process:
+	•	Validate user owns creative.
+	•	Update creative:
+	•	status = winner
+	•	isWinner = true
+	•	winnerMarkedAt = now
+	•	winnerReason
+	•	winningSignal
+	•	Create activity log.
+Output:
+Creative
+
+7.6 Remove Winner Status
+Input:
+type RemoveWinnerStatusInput = {   creativeId: string }
+Process:
+	•	Validate user owns creative.
+	•	Update creative:
+	•	status = testing
+	•	isWinner = false
+	•	winnerMarkedAt = null
+	•	winnerReason = null
+	•	winningSignal = null
+	•	Create activity log.
+Output:
+Creative
+
+7.7 Create Scale Batch from Winner
+Input:
+type CreateScaleBatchInput = {   productId: string   sourceCreativeId: string   name: string   objective?: string }
+Process:
+	•	Validate source creative exists.
+	•	Validate source creative belongs to user.
+	•	Validate source creative is winner.
+	•	Create test batch with sourceCreativeId.
+	•	Return batch with source creative DNA.
+Output:
+{   batch: TestBatch   sourceCreative: Creative }
+Important:
+Creative child belum otomatis dibuat kecuali user memilih duplicate. MVP cukup membuat batch baru dari source winner.
+
+7.8 Create Child Creative from Source
+Input:
+type CreateChildCreativeInput = {   batchId: string   sourceCreativeId: string   mutationType?: RelationType   creativePayload: CreateCreativeInput }
+Process:
+	•	Validate batch sourceCreativeId.
+	•	Validate source creative winner.
+	•	Create creative with:
+	•	parentCreativeId = sourceCreativeId
+	•	sourceWinnerId = sourceCreativeId
+	•	dnaSnapshot = snapshot source creative
+	•	Create edge:
+	•	fromCreativeId = sourceCreativeId
+	•	toCreativeId = newCreative.id
+	•	relationType = mutationType or scaled_from
+	•	Create activity log.
+Output:
+Creative
+
+7.9 Generate Canvas Data
+Input:
+type GetCanvasDataInput = {   productId: string   filters?: {     winnerOnly?: boolean     batchId?: string     angle?: string     format?: string   } }
+Process:
+	•	Fetch batches by productId.
+	•	Fetch creatives by productId.
+	•	Fetch assets by productId.
+	•	Fetch metrics by productId.
+	•	Fetch edges by productId.
+	•	Apply filters.
+	•	Generate React Flow nodes.
+	•	Generate React Flow edges.
+	•	Apply layout.
+	•	Return canvas data.
+Output:
+type CanvasData = {   nodes: FlowNode[]   edges: FlowEdge[] }
+
+8. React Flow Mapping
+8.1 Creative Node Data
+type CreativeNodeData = {   creativeId: string   batchId: string   productId: string    creativeNumber: number   title: string   angle?: string   hook: string    status: CreativeStatus   isWinner: boolean    thumbnailUrl?: string    metrics?: {     spend?: number     purchases?: number     cpa?: number     roas?: number   } }
+8.2 Flow Node
+type FlowNode = {   id: string   type: "creativeNode"   position: {     x: number     y: number   }   data: CreativeNodeData }
+8.3 Flow Edge
+type FlowEdge = {   id: string   source: string   target: string   type?: "smoothstep" | "default"   label?: string   data?: {     relationType: string   } }
+8.4 Layout Strategy MVP
+Gunakan batch lane layout.
+Horizontal flow:
+Test Batch 1 → Test Batch 2 → Test Batch 3
+Formula:
+x = batchIndex * 420 y = creativeIndex * 180
+8.5 Node Design
+Creative node menampilkan:
+	•	Creative number
+	•	Thumbnail
+	•	Hook pendek
+	•	Angle
+	•	Status badge
+	•	Winner badge
+	•	CPA atau purchase jika ada
+Recommended size:
+width: 260px minimum height: 140px
+8.6 Edge Style
+MVP edge style:
+	•	Winner lineage: green
+	•	Default relation: gray
+	•	Manual relation: dashed gray
+Later:
+	•	same_hook: blue
+	•	same_visual_prompt: purple
+	•	visual_mutation: orange
+	•	text_mutation: yellow
+	•	format_mutation: teal
+
+9. Component Architecture
+9.1 Folder Structure
+src/   app/     layout.tsx     page.tsx     login/       page.tsx     register/       page.tsx     dashboard/       page.tsx     products/       page.tsx       new/         page.tsx       [productId]/         layout.tsx         page.tsx         overview/           page.tsx         batches/           page.tsx           new/             page.tsx           [batchId]/             page.tsx         canvas/           page.tsx         winners/           page.tsx         settings/           page.tsx         creatives/           [creativeId]/             page.tsx    components/     layout/       AppShell.tsx       Sidebar.tsx       Topbar.tsx      auth/       LoginForm.tsx       RegisterForm.tsx       AuthGuard.tsx      products/       ProductCard.tsx       ProductForm.tsx       ProductList.tsx      batches/       BatchCard.tsx       BatchForm.tsx       BatchHeader.tsx      creatives/       CreativeCard.tsx       CreativeForm.tsx       CreativeGrid.tsx       CreativeDetailDrawer.tsx       CreativeDNASection.tsx       CreativeMetricsForm.tsx       MarkWinnerDialog.tsx       CreateScaleBatchDialog.tsx       AssetUploader.tsx      canvas/       LineageCanvas.tsx       CreativeNode.tsx       CanvasToolbar.tsx       CanvasFilterBar.tsx       CanvasLegend.tsx       CanvasInspector.tsx      common/       Button.tsx       Input.tsx       Textarea.tsx       Select.tsx       Badge.tsx       Dialog.tsx       Drawer.tsx       EmptyState.tsx       ConfirmDialog.tsx       Toast.tsx    lib/     firebase/       client.ts       admin.ts       auth.ts       firestore.ts       storage.ts      services/       products.service.ts       batches.service.ts       creatives.service.ts       assets.service.ts       metrics.service.ts       canvas.service.ts       exports.service.ts      validators/       product.schema.ts       batch.schema.ts       creative.schema.ts       metrics.schema.ts      utils/       dates.ts       csv.ts       dnaSnapshot.ts       canvasLayout.ts       metrics.ts       storagePath.ts    types/     product.ts     batch.ts     creative.ts     asset.ts     metric.ts     canvas.ts
+
+10. Type Definitions
+10.1 Creative Status
+export type CreativeStatus =   | "draft"   | "testing"   | "winner"   | "loser"   | "scaled"   | "archived"
+10.2 Batch Status
+export type BatchStatus =   | "draft"   | "testing"   | "completed"   | "archived"
+10.3 Creative Format
+export type CreativeFormat =   | "image"   | "video"   | "carousel"
+10.4 Aspect Ratio
+export type AspectRatio =   | "9:16"   | "4:5"   | "1:1"   | "16:9"   | "other"
+10.5 Relation Type
+export type RelationType =   | "scaled_from"   | "same_hook"   | "same_visual_prompt"   | "same_angle"   | "copy_test"   | "visual_mutation"   | "text_mutation"   | "format_mutation"   | "manual_relation"
+
+11. Validation Rules
+11.1 Product Validation
+name: required, min 2, max 100 description: optional, max 500 niche: optional, max 100
+11.2 Batch Validation
+productId: required name: required, min 2, max 100 objective: optional, max 300 sourceCreativeId: optional status: enum
+11.3 Creative Validation
+productId: required batchId: required hook: required, min 3, max 500 primaryText: optional, max 3000 headline: optional, max 255 description: optional, max 500 cta: optional, max 100 angle: optional, max 255 imagePrompt: optional, max 5000 videoPrompt: optional, max 5000 visualNotes: optional, max 2000 format: required enum aspectRatio: optional enum
+11.4 Metrics Validation
+spend: optional number min 0 impressions: optional integer min 0 reach: optional integer min 0 clicks: optional integer min 0 purchases: optional integer min 0 revenue: optional number min 0 ctr: optional number min 0 cpc: optional number min 0 cpa: optional number min 0 roas: optional number min 0
+11.5 File Validation
+image max: 10 MB video max: 100 MB image MIME: image/* video MIME: video/*
+
+12. Data Access Services
+12.1 products.service.ts
+Functions:
+createProduct(input) updateProduct(productId, input) archiveProduct(productId) deleteProduct(productId) getProduct(productId) listProducts(userId)
+12.2 batches.service.ts
+Functions:
+createBatch(input) updateBatch(batchId, input) archiveBatch(batchId) getBatch(batchId) listBatches(productId) createScaleBatchFromWinner(input)
+12.3 creatives.service.ts
+Functions:
+createCreative(input) createChildCreativeFromSource(input) updateCreative(creativeId, input) deleteCreative(creativeId) archiveCreative(creativeId) getCreative(creativeId) listCreativesByBatch(batchId) listCreativesByProduct(productId) markCreativeAsWinner(input) removeWinnerStatus(creativeId) duplicateCreative(creativeId)
+12.4 assets.service.ts
+Functions:
+uploadCreativeAsset(input) deleteCreativeAsset(assetId) listCreativeAssets(creativeId) getCreativeAsset(assetId)
+12.5 metrics.service.ts
+Functions:
+upsertCreativeMetric(input) getCreativeMetric(creativeId) listMetricsByProduct(productId) calculateCPA(spend, purchases) calculateROAS(revenue, spend)
+12.6 canvas.service.ts
+Functions:
+getCanvasData(input) mapCreativeToNode(creative) mapEdgeToFlowEdge(edge) buildCanvasLayout(batches, creatives, edges)
+12.7 exports.service.ts
+Functions:
+exportProductCreatives(productId) exportBatchCreatives(batchId) exportWinners(productId) exportLineage(productId)
+
+13. File Upload
+13.1 Supported File Types
+Images:
+jpg jpeg png webp
+Videos:
+mp4 mov webm
+13.2 File Size Limits
+Recommended MVP:
+Image max: 10 MB Video max: 100 MB
+13.3 Upload Flow
+	•	User selects file.
+	•	Client validates file type and size.
+	•	Generate secure storage path.
+	•	Upload file to Cloud Storage.
+	•	Save metadata to creativeAssets collection.
+	•	Show preview in creative card and detail drawer.
+13.4 Thumbnail
+MVP:
+	•	For image: use original image preview.
+	•	For video: show placeholder or manually uploaded thumbnail.
+Later:
+	•	Auto-generate video thumbnail with Cloud Functions.
+
+14. Canvas Implementation
+14.1 Required Package
+npm install @xyflow/react
+14.2 Canvas Requirements
+Canvas must support:
+	•	Render custom creative node.
+	•	Render edges.
+	•	Pan.
+	•	Zoom.
+	•	Fit view.
+	•	Mini map optional.
+	•	Controls.
+	•	Click node to open drawer.
+	•	Filter winner only.
+	•	Group by batch.
+14.3 Canvas Component Structure
+LineageCanvas   CanvasToolbar   CanvasFilterBar   ReactFlow     CreativeNode   CanvasInspector   CanvasLegend
+14.4 Canvas Data Loading
+Recommended:
+	•	Load canvas data from Firestore by productId.
+	•	Cache result in React state or query cache.
+	•	Refetch after create/update/delete.
+	•	Show skeleton loading.
+14.5 Layout Algorithm MVP
+function buildCanvasLayout(batches, creatives, edges) {   const nodes = []    batches.forEach((batch, batchIndex) => {     const batchCreatives = creatives.filter(       creative => creative.batchId === batch.id     )      batchCreatives.forEach((creative, creativeIndex) => {       nodes.push({         id: creative.id,         type: "creativeNode",         position: {           x: batchIndex * 420,           y: creativeIndex * 180,         },         data: mapCreativeToNodeData(creative),       })     })   })    return {     nodes,     edges: edges.map(mapCreativeEdgeToFlowEdge),   } }
+Later improvement:
+	•	Use dagre or elkjs for auto layout.
+	•	Add collapse by batch.
+	•	Add winner path mode.
+
+15. Search and Filter
+15.1 Product Search
+Search by:
+	•	name
+	•	niche
+	•	notes
+15.2 Creative Search
+Search by:
+	•	hook
+	•	angle
+	•	headline
+	•	primaryText
+	•	imagePrompt
+	•	videoPrompt
+	•	notes
+15.3 Canvas Filter
+type CanvasFilter = {   winnerOnly?: boolean   batchId?: string   angle?: string   format?: CreativeFormat   status?: CreativeStatus }
+15.4 Firestore Query Limitation Note
+Firestore does not behave like full-text search. Untuk MVP, search bisa dilakukan dengan:
+	•	Basic client-side filtering setelah fetch per product.
+	•	Normalized searchable fields.
+	•	Later integrate Algolia, Meilisearch, Typesense, atau Firebase Extensions jika data besar.
+
+16. Export CSV
+16.1 Export Modes
+Export product creatives Export batch creatives Export winners only Export lineage
+16.2 CSV Columns
+Product Name Batch Name Creative Number Creative Name Status Is Winner Winner Reason Winning Signal Parent Creative ID Source Winner ID Angle Hook Primary Text Headline Description CTA Image Prompt Video Prompt Visual Notes Format Aspect Ratio Placements Spend Purchases CPA ROAS Notes Created At Updated At
+
+17. UI States
+17.1 Loading
+	•	Product list skeleton.
+	•	Batch grid skeleton.
+	•	Creative card skeleton.
+	•	Canvas loading placeholder.
+	•	Upload progress state.
+17.2 Empty
+	•	No product.
+	•	No batch.
+	•	No creative.
+	•	No winner.
+	•	No lineage.
+17.3 Error
+	•	Unauthorized.
+	•	Not found.
+	•	Upload failed.
+	•	Save failed.
+	•	Canvas failed to load.
+	•	Security rules denied.
+17.4 Success Toast
+	•	Product created.
+	•	Batch created.
+	•	Creative saved.
+	•	Winner marked.
+	•	Scale batch created.
+	•	Asset uploaded.
+	•	CSV exported.
+
+18. Performance Requirements
+18.1 Page Load
+Target:
+Dashboard load: under 2 seconds for normal data size Canvas load: under 3 seconds for up to 300 creative nodes Creative drawer open: under 500ms after data cached
+18.2 Canvas Limit MVP
+Recommended practical limit:
+Per product: 300 creative nodes visible Per canvas view: default show all, but warn after 300 Winner-only mode for large product
+18.3 Query Optimization
+Use indexes on:
+	•	userId
+	•	productId
+	•	batchId
+	•	isWinner
+	•	status
+	•	parentCreativeId
+	•	sourceWinnerId
+Avoid fetching all creative across all products.
+
+19. Realtime
+19.1 MVP
+Realtime optional.
+19.2 Later
+Use Firestore realtime listeners for:
+	•	Multi-tab update.
+	•	Team collaboration.
+	•	Live canvas update.
+	•	Metrics update.
+	•	Upload state sync.
+
+20. Testing Strategy
+20.1 Unit Tests
+Test:
+	•	dnaSnapshot creation.
+	•	canvas layout function.
+	•	metrics calculation.
+	•	CSV export.
+	•	validation schemas.
+	•	storage path generator.
+20.2 Integration Tests
+Test:
+	•	create product.
+	•	create batch.
+	•	create creative.
+	•	upload asset metadata.
+	•	mark winner.
+	•	create scale batch.
+	•	create child creative.
+	•	generate canvas data.
+20.3 Firebase Emulator Tests
+Use Emulator Suite for:
+	•	Auth test.
+	•	Firestore Security Rules test.
+	•	Storage Rules test.
+	•	CRUD operation test.
+20.4 Manual QA Scenarios
+Scenario 1:
+	•	Create product.
+	•	Create Test Campaign 1.
+	•	Add 12 creative.
+	•	Mark Creative 4 as winner.
+	•	Create Test Campaign 2 from Creative 4.
+	•	Add 12 child creative.
+	•	Mark Creative 2 as winner.
+	•	Open canvas.
+	•	Verify edge Creative 4 → Creative 2.
+Scenario 2:
+	•	Create batch with no source.
+	•	Add creative.
+	•	Upload image.
+	•	Open detail drawer.
+	•	Verify DNA visible.
+Scenario 3:
+	•	Input metrics.
+	•	Mark winner with reason.
+	•	Open winner library.
+	•	Verify winner appears.
+Scenario 4:
+	•	Open another user session.
+	•	Try access product ID from different user.
+	•	Verify access denied.
+Scenario 5:
+	•	Upload invalid file.
+	•	Verify upload rejected.
+	•	Upload file above limit.
+	•	Verify upload rejected.
+
+21. Error Handling
+21.1 Common Error Codes
+AUTH_REQUIRED FORBIDDEN PRODUCT_NOT_FOUND BATCH_NOT_FOUND CREATIVE_NOT_FOUND SOURCE_CREATIVE_NOT_WINNER UPLOAD_FAILED VALIDATION_ERROR CANVAS_LOAD_FAILED EXPORT_FAILED SECURITY_RULES_DENIED
+21.2 Error Messages
+Creative ini belum ditandai sebagai winner, jadi belum bisa dipakai untuk scale batch.  Product tidak ditemukan atau lo tidak punya akses.  Upload gagal. Coba cek ukuran dan format file.  Canvas gagal dimuat. Data creative aman, tapi tampilan lineage perlu dimuat ulang.  File terlalu besar atau format tidak didukung.
+
+22. Development Milestones
+Sprint 1: Foundation
+Deliverables:
+	•	Next.js project setup.
+	•	Firebase project setup.
+	•	Firebase Auth.
+	•	App shell.
+	•	Product CRUD.
+	•	Firestore rules draft.
+	•	Storage rules draft.
+Sprint 2: Batch and Creative CRUD
+Deliverables:
+	•	Batch CRUD.
+	•	Creative CRUD.
+	•	Creative form.
+	•	Creative grid.
+	•	Creative detail drawer.
+Sprint 3: Asset and Metrics
+Deliverables:
+	•	Cloud Storage upload.
+	•	Creative asset preview.
+	•	Manual metrics form.
+	•	Metrics display.
+Sprint 4: Winner Workflow
+Deliverables:
+	•	Mark winner.
+	•	Winner reason.
+	•	Winner library.
+	•	Create scale batch from winner.
+Sprint 5: Lineage Canvas
+Deliverables:
+	•	React Flow integration.
+	•	Creative node.
+	•	Edge rendering.
+	•	Canvas filter.
+	•	Detail inspector.
+Sprint 6: Polish and Export
+Deliverables:
+	•	Search.
+	•	Filter.
+	•	CSV export.
+	•	Empty states.
+	•	Error handling.
+	•	QA pass.
+
+23. Firebase Studio Build Note
+Firebase Studio dapat dipakai untuk:
+	•	Generate prototype UI.
+	•	Generate Next.js project.
+	•	Membantu setup Auth dan Firestore.
+	•	Preview app.
+	•	Iterasi cepat dengan prompt.
+	•	Publish awal jika memungkinkan.
+Namun source of truth tetap harus:
+	•	GitHub repository.
+	•	Firebase project.
+	•	Local runnable codebase.
+Do not rely on Firebase Studio as long-term workspace.
+Recommended workflow:
+	•	Generate initial app with Firebase Studio jika tersedia.
+	•	Switch to code view.
+	•	Push project to GitHub.
+	•	Set up Firebase project manually.
+	•	Confirm Firestore rules.
+	•	Confirm Storage rules.
+	•	Run locally.
+	•	Deploy from repo.
+
+24. MVP Definition of Done
+MVP selesai jika:
+	•	User bisa register/login.
+	•	User bisa membuat product.
+	•	User bisa membuat batch.
+	•	User bisa membuat creative.
+	•	User bisa upload asset.
+	•	User bisa input metrics.
+	•	User bisa mark winner.
+	•	User bisa create scale batch from winner.
+	•	Child creative punya parentCreativeId.
+	•	creativeEdges terbentuk otomatis.
+	•	Canvas menampilkan lineage.
+	•	Detail drawer menampilkan DNA creative.
+	•	User bisa export CSV.
+	•	Semua data private per user.
+	•	Basic QA scenarios lolos.
+
+25. Recommended Build Priority
+Urutan paling aman:
+	•	Firebase project setup.
+	•	Auth.
+	•	Firestore rules.
+	•	Storage rules.
+	•	Product CRUD.
+	•	Batch CRUD.
+	•	Creative CRUD.
+	•	Asset upload.
+	•	Winner marking.
+	•	Scale batch from winner.
+	•	Edge creation.
+	•	Canvas view.
+	•	Metrics.
+	•	CSV export.
+Jangan mulai dari canvas dulu. Canvas itu panggung. Data model adalah tulang, dan creative lineage adalah darahnya.
