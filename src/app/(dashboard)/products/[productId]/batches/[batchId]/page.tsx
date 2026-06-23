@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { batchesService, TestBatch } from "@/lib/services/batches.service";
@@ -14,6 +15,9 @@ export default function BatchDetailPage({ params }: { params: Promise<{ productI
   const [creatives, setCreatives] = useState<CreativeAsset[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [duplicating, setDuplicating] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     Promise.all([
@@ -38,6 +42,18 @@ export default function BatchDetailPage({ params }: { params: Promise<{ productI
       setCreatives(prev => prev.map(c => c.id === creativeId ? { ...c, status } : c));
     } catch (err: any) {
       alert("Failed to update status");
+    }
+  };
+
+  const handleDuplicateBatch = async () => {
+    if (!confirm("Are you sure you want to duplicate this batch? It will clone all creatives as 'pending'.")) return;
+    setDuplicating(true);
+    try {
+      const newBatchId = await batchesService.duplicateBatch(batchId);
+      router.push(`/products/${productId}/batches/${newBatchId}`);
+    } catch (err: any) {
+      alert(err.message || "Failed to duplicate batch");
+      setDuplicating(false);
     }
   };
 
@@ -82,13 +98,23 @@ export default function BatchDetailPage({ params }: { params: Promise<{ productI
               Batch ID: <span className="font-mono">{batchId}</span>
             </p>
           </div>
-          <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${
-            batch.status === "active" ? "bg-blue-100 text-blue-800" : 
-            batch.status === "completed" ? "bg-green-100 text-green-800" :
-            "bg-slate-100 text-slate-800"
-          }`}>
-            {batch.status.toUpperCase()}
-          </span>
+          <div className="flex items-center gap-4">
+            <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${
+              batch.status === "active" ? "bg-blue-100 text-blue-800" : 
+              batch.status === "completed" ? "bg-green-100 text-green-800" :
+              "bg-slate-100 text-slate-800"
+            }`}>
+              {batch.status.toUpperCase()}
+            </span>
+            <button
+              onClick={handleDuplicateBatch}
+              disabled={duplicating}
+              className="flex items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50"
+            >
+              {duplicating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {duplicating ? "Duplicating..." : "Duplicate Batch"}
+            </button>
+          </div>
         </div>
       </div>
 

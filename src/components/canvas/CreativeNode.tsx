@@ -56,7 +56,7 @@ function CreativeNode({ data, isConnectable }: NodeProps) {
       />
       
       <div className="p-1">
-        <div className="aspect-video w-full overflow-hidden rounded bg-slate-100 relative group flex items-center justify-center">
+        <div className="aspect-[3/4] w-full overflow-hidden rounded bg-slate-100 relative group flex items-center justify-center">
           {type === 'image' && storageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={storageUrl} alt={name} className="h-full w-full object-cover" />

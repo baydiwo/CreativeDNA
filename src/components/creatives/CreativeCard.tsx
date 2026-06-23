@@ -10,7 +10,7 @@ interface CreativeCardProps {
 export function CreativeCard({ creative, onStatusChange }: CreativeCardProps) {
   return (
     <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md">
-      <div className="relative aspect-square w-full bg-slate-100 overflow-hidden">
+      <div className="relative aspect-[3/4] w-full bg-slate-100 overflow-hidden">
         {creative.type === "image" ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -49,6 +49,23 @@ export function CreativeCard({ creative, onStatusChange }: CreativeCardProps) {
           </p>
         </div>
 
+        {creative.metrics && Object.keys(creative.metrics).length > 0 && (
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs border-t border-slate-100 pt-3">
+            <div>
+              <span className="text-slate-500">Spend:</span>{" "}
+              <span className="font-semibold text-slate-900">${creative.metrics.spend?.toLocaleString() || "0"}</span>
+            </div>
+            <div>
+              <span className="text-slate-500">CPA:</span>{" "}
+              <span className="font-semibold text-blue-700">${creative.metrics.cpa || "-"}</span>
+            </div>
+            <div>
+              <span className="text-slate-500">ROAS:</span>{" "}
+              <span className="font-semibold text-green-700">{creative.metrics.roas || "-"}x</span>
+            </div>
+          </div>
+        )}
+
         {onStatusChange && (
           <div className="mt-4 pt-4 border-t border-slate-100 flex gap-2">
             <select
@@ -67,6 +84,7 @@ export function CreativeCard({ creative, onStatusChange }: CreativeCardProps) {
           <div className="mt-2 pt-2 border-t border-slate-100">
             <Link
               href={`/products/${creative.productId}/batches/scale?sourceId=${creative.id}`}
+              onClick={(e) => e.stopPropagation()}
               className="flex w-full items-center justify-center rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
             >
               Create Scale Batch

@@ -9,7 +9,9 @@ import {
   Node, 
   Edge,
   applyNodeChanges,
-  NodeChange
+  NodeChange,
+  addEdge,
+  Connection
 } from "@xyflow/react";
 import '@xyflow/react/dist/style.css';
 import { collection, query, where, getDocs } from "firebase/firestore";
@@ -36,19 +38,28 @@ export default function LineageCanvasPage({ params }: { params: Promise<{ produc
   useEffect(() => {
     async function loadGraph() {
       try {
-        // Fetch all creatives for this product
-        const qCreatives = query(collection(db, "creatives"), where("productId", "==", productId));
-        const creativesSnap = await getDocs(qCreatives);
-        const creativesList = creativesSnap.docs.map(d => ({ id: d.id, ...d.data() } as CreativeAsset));
-        
-        // Fetch all edges for this product
-        const qEdges = query(collection(db, "creativeEdges"), where("productId", "==", productId));
-        const edgesSnap = await getDocs(qEdges);
+        const { batchesService } = await import("@/lib/services/batches.service");
+
+        // Fetch batches, creatives, and edges concurrently
+        const [batchesData, creativesSnap, edgesSnap] = await Promise.all([
+          batchesService.getProductBatches(productId),
+          getDocs(query(collection(db, "creatives"), where("productId", "==", productId))),
+          getDocs(query(collection(db, "creativeEdges"), where("productId", "==", productId)))
+        ]);
+
+        const creativesList = creativesSnap.docs.map(d => ({ 
+          id: d.id, 
+          ...d.data(),
+          createdAt: d.data().createdAt?.toDate() || new Date()
+        } as CreativeAsset));
+
+        // Sort batches by ascending date (oldest first)
+        batchesData.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
         
         const initialNodes: Node[] = [];
         const initialEdges: Edge[] = [];
         
-        // Map edges
+        // Map explicit manual edges
         edgesSnap.forEach(doc => {
           const data = doc.data();
           initialEdges.push({
@@ -61,54 +72,80 @@ export default function LineageCanvasPage({ params }: { params: Promise<{ produc
           });
         });
 
-        // Basic layout engine
-        // We'll separate into roots and children
-        const childrenIds = new Set(initialEdges.map(e => e.target));
-        const roots = creativesList.filter(c => !childrenIds.has(c.id));
-        
-        let currentX = 100;
-        const NODE_WIDTH = 250;
-        const Y_SPACING = 300;
+        // Group creatives by batchId
+        const batchCreativeMap = new Map<string, CreativeAsset[]>();
+        batchesData.forEach(b => batchCreativeMap.set(b.id, []));
+        creativesList.forEach(c => {
+          if (!batchCreativeMap.has(c.batchId)) {
+            batchCreativeMap.set(c.batchId, []);
+          }
+          batchCreativeMap.get(c.batchId)!.push(c);
+        });
 
-        // Recursive placement
-        const placeNode = (creativeId: string, level: number, parentX?: number) => {
-          const creative = creativesList.find(c => c.id === creativeId);
-          if (!creative) return;
+        const orderedBatchIds = batchesData.map(b => b.id);
+        const orphanCreatives = creativesList.filter(c => !orderedBatchIds.includes(c.batchId));
+        if (orphanCreatives.length > 0) orderedBatchIds.push("orphans");
 
-          // Check if already placed
-          if (initialNodes.find(n => n.id === creativeId)) return;
+        let level = 0;
+        const NODE_WIDTH = 280; // slightly wider to avoid cramped labels
+        const Y_SPACING = 380;
 
-          const x = parentX !== undefined ? parentX : currentX;
-          if (parentX === undefined) currentX += NODE_WIDTH;
-
-          initialNodes.push({
-            id: creative.id,
-            type: 'creative',
-            position: { x, y: level * Y_SPACING + 100 },
-            data: {
-              id: creative.id,
-              name: creative.name,
-              type: creative.type,
-              status: creative.status,
-              storageUrl: creative.storageUrl,
-              onClick: (id: string) => {
-                const c = creativesList.find(cr => cr.id === id);
-                if (c) setSelectedCreative(c);
-              }
-            }
-          });
-
-          // Find children and place them below
-          const children = initialEdges.filter(e => e.source === creativeId).map(e => e.target);
+        orderedBatchIds.forEach((batchId, batchIndex) => {
+          const batchCreatives = batchId === "orphans" ? orphanCreatives : batchCreativeMap.get(batchId) || [];
           
-          let childXStart = x - ((children.length - 1) * NODE_WIDTH) / 2;
-          children.forEach(childId => {
-            placeNode(childId, level + 1, childXStart);
-            childXStart += NODE_WIDTH;
-          });
-        };
+          // Sort creatives in a batch chronologically
+          batchCreatives.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
-        roots.forEach(root => placeNode(root.id, 0));
+          const totalWidth = batchCreatives.length * NODE_WIDTH;
+          let startX = -totalWidth / 2; // Center row horizontally
+
+          batchCreatives.forEach((creative, idx) => {
+            initialNodes.push({
+              id: creative.id,
+              type: 'creative',
+              position: { x: startX + idx * NODE_WIDTH, y: level * Y_SPACING + 100 },
+              data: {
+                id: creative.id,
+                name: creative.name,
+                type: creative.type,
+                status: creative.status,
+                storageUrl: creative.storageUrl,
+                onClick: (id: string) => {
+                  const c = creativesList.find(cr => cr.id === id);
+                  if (c) setSelectedCreative(c);
+                }
+              }
+            });
+          });
+
+          // Auto-link winners to winners in the NEXT batch
+          if (batchIndex < orderedBatchIds.length - 1) {
+            const nextBatchId = orderedBatchIds[batchIndex + 1];
+            const nextBatchCreatives = nextBatchId === "orphans" ? orphanCreatives : batchCreativeMap.get(nextBatchId) || [];
+            
+            const currentWinners = batchCreatives.filter(c => c.status === 'winner');
+            const nextWinners = nextBatchCreatives.filter(c => c.status === 'winner');
+
+            currentWinners.forEach(winner => {
+              nextWinners.forEach(nextWinner => {
+                // Check if a manual edge already exists
+                const existingEdge = initialEdges.find(e => e.source === winner.id && e.target === nextWinner.id);
+                if (!existingEdge) {
+                  initialEdges.push({
+                    id: `auto-e-${winner.id}-${nextWinner.id}`,
+                    source: winner.id,
+                    target: nextWinner.id,
+                    animated: true,
+                    label: "Scaled Winner",
+                    style: { stroke: '#10b981', strokeWidth: 2, strokeDasharray: '5,5' } // Green dashed line
+                  });
+                }
+              });
+            });
+          }
+
+          level++;
+        });
 
         setRawCreatives(creativesList);
         setNodes(initialNodes);
@@ -128,6 +165,30 @@ export default function LineageCanvasPage({ params }: { params: Promise<{ produc
     []
   );
 
+  const onConnect = useCallback(async (params: Connection) => {
+    if (!params.source || !params.target) return;
+    
+    // Optimistic UI update
+    const newEdge: Edge = { 
+      ...params, 
+      id: `e-${params.source}-${params.target}`,
+      animated: true,
+      label: "Manual Link",
+      style: { stroke: '#94a3b8', strokeWidth: 2 }
+    };
+    setEdges((eds) => addEdge(newEdge, eds));
+    
+    try {
+      // Save to backend
+      const { creativesService } = await import("@/lib/services/creatives.service");
+      await creativesService.createEdge(params.source, params.target, "Manual Link");
+    } catch (err) {
+      console.error("Failed to save edge", err);
+      // Revert if error
+      setEdges((eds) => eds.filter(e => e.id !== newEdge.id));
+    }
+  }, []);
+
   if (loading) {
     return (
       <div className="flex h-[calc(100vh-200px)] w-full items-center justify-center">
@@ -142,6 +203,7 @@ export default function LineageCanvasPage({ params }: { params: Promise<{ produc
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
+        onConnect={onConnect}
         nodeTypes={nodeTypes}
         fitView
         className="bg-slate-50"

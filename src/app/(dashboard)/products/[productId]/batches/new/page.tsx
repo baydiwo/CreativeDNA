@@ -25,6 +25,13 @@ export default function NewBatchPage({ params }: { params: Promise<{ productId: 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
+  const [defaultMetadata, setDefaultMetadata] = useState({
+    hook: "",
+    angle: "",
+    primaryText: "",
+    visualNotes: ""
+  });
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -82,6 +89,12 @@ export default function NewBatchPage({ params }: { params: Promise<{ productId: 
         );
 
         // Save Creative metadata to Firestore
+        const metadataToSave: any = {};
+        if (defaultMetadata.hook) metadataToSave.hook = defaultMetadata.hook;
+        if (defaultMetadata.angle) metadataToSave.angle = defaultMetadata.angle;
+        if (defaultMetadata.primaryText) metadataToSave.primaryText = defaultMetadata.primaryText;
+        if (defaultMetadata.visualNotes) metadataToSave.visualNotes = defaultMetadata.visualNotes;
+
         await creativesService.createCreative({
           batchId,
           productId,
@@ -89,6 +102,7 @@ export default function NewBatchPage({ params }: { params: Promise<{ productId: 
           type,
           storageUrl: downloadUrl,
           status: "pending",
+          ...(Object.keys(metadataToSave).length > 0 && { metadata: metadataToSave })
         });
       });
 
@@ -131,6 +145,55 @@ export default function NewBatchPage({ params }: { params: Promise<{ productId: 
               className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:text-sm"
               placeholder="e.g., Summer Campaign Initial Test"
             />
+          </div>
+
+          <div className="border-t border-slate-200 pt-6">
+            <h3 className="text-lg font-medium text-slate-900 mb-4">Default Creative DNA (Optional)</h3>
+            <p className="text-sm text-slate-500 mb-4">
+              Fill this out to automatically apply the same metadata to all creatives uploaded in this batch.
+            </p>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Default Hook</label>
+                <textarea
+                  value={defaultMetadata.hook}
+                  onChange={(e) => setDefaultMetadata(p => ({ ...p, hook: e.target.value }))}
+                  rows={2}
+                  className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none sm:text-sm"
+                  placeholder="The first 3 seconds..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Default Angle</label>
+                <textarea
+                  value={defaultMetadata.angle}
+                  onChange={(e) => setDefaultMetadata(p => ({ ...p, angle: e.target.value }))}
+                  rows={2}
+                  className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none sm:text-sm"
+                  placeholder="The core marketing message..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Primary Text</label>
+                <textarea
+                  value={defaultMetadata.primaryText}
+                  onChange={(e) => setDefaultMetadata(p => ({ ...p, primaryText: e.target.value }))}
+                  rows={3}
+                  className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none sm:text-sm"
+                  placeholder="Ad body copy..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Visual Notes</label>
+                <textarea
+                  value={defaultMetadata.visualNotes}
+                  onChange={(e) => setDefaultMetadata(p => ({ ...p, visualNotes: e.target.value }))}
+                  rows={3}
+                  className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none sm:text-sm"
+                  placeholder="Visual description..."
+                />
+              </div>
+            </div>
           </div>
 
           <div>

@@ -14,15 +14,44 @@ import {
 export type CreativeType = "image" | "video";
 export type CreativeStatus = "pending" | "winner" | "loser";
 
+export interface CreativeMetrics {
+  spend?: number;
+  impressions?: number;
+  clicks?: number;
+  purchases?: number;
+  revenue?: number;
+  
+  // Auto-calculated fields
+  cpa?: number;
+  roas?: number;
+  ctr?: number;
+}
+
 export interface CreativeAsset {
   id: string;
   batchId: string;
   productId: string;
   name: string;
   type: CreativeType;
-  storageUrl: string;
-  status: CreativeStatus;
-  metadata?: Record<string, any>;
+  storageUrl?: string;
+  status: "pending" | "winner" | "loser";
+  
+  // Lineage Tracking
+  parentCreativeId?: string;
+  mutationType?: string; // e.g., "New Hook", "Different Visual"
+  
+  // Creative DNA
+  metadata?: {
+    hook?: string;
+    angle?: string;
+    primaryText?: string;
+    headline?: string;
+    visualNotes?: string;
+  };
+  
+  // Optional Performance Metrics
+  metrics?: CreativeMetrics;
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -121,6 +150,43 @@ export const creativesService = {
         ...data,
         createdAt: data.createdAt?.toDate() || new Date(),
       } as CreativeEdge;
+    });
+  },
+
+  /**
+   * Update creative metrics
+   */
+  async updateCreativeMetrics(creativeId: string, metricsInput: Partial<CreativeMetrics>): Promise<void> {
+    const docRef = doc(db, "creatives", creativeId);
+    
+    // Auto-calculate CPA (Spend / Purchases)
+    let cpa = undefined;
+    if (metricsInput.spend && metricsInput.purchases && metricsInput.purchases > 0) {
+      cpa = Number((metricsInput.spend / metricsInput.purchases).toFixed(2));
+    }
+    
+    // Auto-calculate ROAS (Revenue / Spend)
+    let roas = undefined;
+    if (metricsInput.revenue && metricsInput.spend && metricsInput.spend > 0) {
+      roas = Number((metricsInput.revenue / metricsInput.spend).toFixed(2));
+    }
+
+    // Auto-calculate CTR (Clicks / Impressions)
+    let ctr = undefined;
+    if (metricsInput.clicks && metricsInput.impressions && metricsInput.impressions > 0) {
+      ctr = Number(((metricsInput.clicks / metricsInput.impressions) * 100).toFixed(2));
+    }
+
+    const metrics: CreativeMetrics = {
+      ...metricsInput,
+      ...(cpa !== undefined && { cpa }),
+      ...(roas !== undefined && { roas }),
+      ...(ctr !== undefined && { ctr }),
+    };
+
+    await updateDoc(docRef, {
+      metrics,
+      updatedAt: serverTimestamp(),
     });
   }
 };

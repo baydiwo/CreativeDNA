@@ -89,5 +89,58 @@ export const batchesService = {
       status,
       updatedAt: serverTimestamp(),
     });
+  },
+
+  /**
+   * Duplicate a batch and all its creatives
+   */
+  async duplicateBatch(batchId: string): Promise<string> {
+    const batch = await this.getBatch(batchId);
+    if (!batch) throw new Error("Batch not found");
+
+    // 1. Create the new batch
+    const newBatchRef = await addDoc(collection(db, "testBatches"), {
+      productId: batch.productId,
+      name: `${batch.name} (Copy)`,
+      status: "active",
+      variantsCount: batch.variantsCount,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    const newBatchId = newBatchRef.id;
+
+    // 2. Fetch original creatives
+    const q = query(
+      collection(db, "creatives"),
+      where("batchId", "==", batchId)
+    );
+    const creativesSnap = await getDocs(q);
+
+    // 3. Clone creatives
+    const promises = creativesSnap.docs.map(creativeDoc => {
+      const data = creativeDoc.data();
+      const payload: any = {
+        batchId: newBatchId,
+        productId: batch.productId,
+        name: data.name,
+        type: data.type,
+        storageUrl: data.storageUrl || "",
+        status: "pending",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+      
+      if (data.metadata) {
+        payload.metadata = data.metadata;
+      }
+      // Note: we don't copy metrics and we set status to pending
+
+      return addDoc(collection(db, "creatives"), payload);
+    });
+
+    await Promise.all(promises);
+
+    return newBatchId;
   }
 };

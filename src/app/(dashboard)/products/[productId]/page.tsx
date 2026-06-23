@@ -125,6 +125,12 @@ export default function ProductDetailPage({ params }: { params: Promise<{ produc
           <h3 className="text-xl font-bold text-slate-900">Creative Test Batches</h3>
           <div className="flex gap-3">
             <Link 
+              href={`/products/${productId}/winners`}
+              className="flex items-center justify-center rounded-md border border-yellow-300 bg-yellow-50 px-4 py-2 text-sm font-medium text-yellow-700 hover:bg-yellow-100"
+            >
+              Winner Library
+            </Link>
+            <Link 
               href={`/products/${productId}/canvas`}
               className="flex items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
